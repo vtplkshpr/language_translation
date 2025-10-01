@@ -12,7 +12,11 @@ from typing import Dict, Any
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+# Try to load from multiple locations
+load_dotenv()  # Current directory
+load_dotenv('.env')  # Explicit .env file
+load_dotenv('../.env')  # Parent directory
+load_dotenv('../../.env')  # Root directory
 
 from services.translation_service import translation_service
 from utils.config import config
@@ -192,6 +196,79 @@ class TranslationCLI:
         
         console.print(stats_table)
 
+async def handle_module_call(function_name: str, args_json: str):
+    """Handle module call from other modules"""
+    try:
+        import json
+        
+        # Parse arguments
+        args = json.loads(args_json) if args_json else {}
+        
+        # Initialize service
+        service = translation_service
+        if not await service.initialize():
+            print(json.dumps({
+                'success': False,
+                'error': 'Failed to initialize translation service',
+                'result': None
+            }))
+            return
+        
+        # Handle different function calls
+        if function_name == 'translate_text':
+            text = args.get('text', '')
+            target_language = args.get('target_language', 'vi')
+            source_language = args.get('source_language', 'auto')
+            
+            translated = await service.translate_text(text, target_language, source_language)
+            
+            print(json.dumps({
+                'success': True,
+                'error': None,
+                'result': {
+                    'translated_text': translated,
+                    'source_language': source_language,
+                    'target_language': target_language
+                }
+            }))
+            
+        elif function_name == 'detect_language':
+            text = args.get('text', '')
+            detected = await service.detect_language(text)
+            
+            print(json.dumps({
+                'success': True,
+                'error': None,
+                'result': {
+                    'detected_language': detected
+                }
+            }))
+            
+        elif function_name == 'get_supported_languages':
+            languages = await service.get_supported_languages()
+            
+            print(json.dumps({
+                'success': True,
+                'error': None,
+                'result': {
+                    'languages': languages
+                }
+            }))
+            
+        else:
+            print(json.dumps({
+                'success': False,
+                'error': f'Unknown function: {function_name}',
+                'result': None
+            }))
+            
+    except Exception as e:
+        print(json.dumps({
+            'success': False,
+            'error': str(e),
+            'result': None
+        }))
+
 @click.command()
 @click.option('--text', '-t', help='Text to translate')
 @click.option('--source-lang', '-s', default='auto', help='Source language code')
@@ -203,12 +280,20 @@ class TranslationCLI:
 @click.option('--models', is_flag=True, help='Show available models')
 @click.option('--stats', is_flag=True, help='Show translation statistics')
 @click.option('--init-db', is_flag=True, help='Initialize database')
-def main(text, source_lang, target_lang, model, batch, interactive, languages, models, stats, init_db):
+@click.option('--module-call', is_flag=True, help='Module call mode (internal)')
+@click.option('--function', help='Function to call in module call mode')
+@click.option('--args', help='JSON arguments for module call mode')
+def main(text, source_lang, target_lang, model, batch, interactive, languages, models, stats, init_db, module_call, function, args):
     """Language Translation CLI - AI-powered local translation service"""
     
     cli = TranslationCLI()
     
     async def run_async():
+        # Handle module call mode
+        if module_call:
+            await handle_module_call(function, args)
+            return
+        
         # Initialize database if requested
         if init_db:
             console.print("[bold yellow]Initializing database...[/bold yellow]")

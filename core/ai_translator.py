@@ -22,10 +22,14 @@ class AILocalTranslator:
         self.db_service = DatabaseService()
         self.ollama_client = None
         
-        # Validate model
+        # Validate model - check if it's a supported model key or a direct model name
         if self.model_name not in config.SUPPORTED_MODELS:
-            logger.warning(f"Model {self.model_name} not supported, using default")
-            self.model_name = config.DEFAULT_MODEL
+            # If it's a direct model name (like llama2:latest), use it directly
+            if ':' in self.model_name or self.model_name in ['llama2:latest', 'tinyllama:latest']:
+                logger.info(f"Using direct model name: {self.model_name}")
+            else:
+                logger.warning(f"Model {self.model_name} not supported, using default")
+                self.model_name = config.DEFAULT_MODEL
     
     async def __aenter__(self):
         """Async context manager entry"""
@@ -63,8 +67,8 @@ class AILocalTranslator:
         if source_language == 'auto':
             source_language = await self.detect_language(text)
         
-        # Check cache first
-        if config.CACHE_ENABLED:
+        # Check cache first (temporarily disabled for testing)
+        if False and config.CACHE_ENABLED:
             cached_result = await self.cache_service.get_cached_translation(
                 text, source_language, target_language
             )

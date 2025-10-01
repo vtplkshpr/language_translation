@@ -9,7 +9,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+# Try to load from multiple locations
+load_dotenv()  # Current directory
+load_dotenv('.env')  # Explicit .env file
+load_dotenv('../.env')  # Parent directory
+load_dotenv('../../.env')  # Root directory
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))

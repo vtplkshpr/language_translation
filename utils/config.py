@@ -3,6 +3,14 @@ Configuration for Language Translation Ability
 """
 import os
 from typing import Dict, List, Any
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+# Try to load from multiple locations
+load_dotenv()  # Current directory
+load_dotenv('.env')  # Explicit .env file
+load_dotenv('../.env')  # Parent directory
+load_dotenv('../../.env')  # Root directory
 
 class TranslationConfig:
     """Configuration class for AI translation service"""
@@ -44,7 +52,7 @@ class TranslationConfig:
     }
     
     # Default model
-    DEFAULT_MODEL = os.getenv('DEFAULT_TRANSLATION_MODEL', 'llama2')
+    DEFAULT_MODEL = os.getenv('DEFAULT_TRANSLATION_MODEL', 'llama2:latest')
     
     # Supported Languages
     SUPPORTED_LANGUAGES = ['en', 'vi', 'ja', 'ko', 'ru', 'fa', 'zh', 'th', 'id', 'ms', 'de', 'fr', 'es', 'it']
@@ -70,7 +78,7 @@ class TranslationConfig:
     DATABASE_URL = os.getenv('DATABASE_URL')
     
     # Cache Configuration
-    CACHE_ENABLED = os.getenv('TRANSLATION_CACHE', 'True').lower() == 'true'
+    CACHE_ENABLED = os.getenv('TRANSLATION_CACHE', 'False').lower() == 'true'
     CACHE_TTL = int(os.getenv('TRANSLATION_CACHE_TTL', '86400'))  # 24 hours
     
     # Performance Configuration

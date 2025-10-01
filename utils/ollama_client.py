@@ -145,31 +145,100 @@ class OllamaClient:
             'de': 'German',
             'fr': 'French',
             'es': 'Spanish',
-            'it': 'Italian'
+            'it': 'Italian',
         }
         
         source_name = lang_names.get(source_lang, source_lang)
         target_name = lang_names.get(target_lang, target_lang)
         
-        prompt = f"""You are a professional translator. Translate the following text from {source_name} to {target_name}.
+        prompt = f"""Translate from {source_name} to {target_name}. Return ONLY this JSON format:
 
-Text to translate: "{text}"
+{{"translation": "translated_text", "confidence": 0.95}}
 
-Translation:"""
+Text: {text}
+
+JSON:"""
         
         return prompt
     
     def _clean_translation_response(self, response: str) -> str:
-        """Clean up translation response from Ollama"""
-        # Remove common prefixes/suffixes that models might add
+        """Clean up translation response from Ollama and extract JSON"""
+        import json
+        import re
+        
+        response = response.strip()
+        
+        # Try to extract JSON from response
+        try:
+            # First try to parse the entire response as JSON
+            data = json.loads(response)
+            if isinstance(data, dict) and 'translation' in data:
+                return data['translation'].strip()
+        except json.JSONDecodeError:
+            pass
+        
+        # Try to find JSON pattern in the response
+        try:
+            # Look for JSON pattern with more flexible regex
+            json_patterns = [
+                r'\{[^{}]*"translation"[^{}]*\}',  # Simple pattern
+                r'\{[^{}]*"translation"[^{}]*"confidence"[^{}]*\}',  # With confidence
+                r'\{.*?"translation".*?\}',  # More flexible
+            ]
+            
+            for pattern in json_patterns:
+                json_match = re.search(pattern, response, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group()
+                    data = json.loads(json_str)
+                    if 'translation' in data:
+                        return data['translation'].strip()
+        except (json.JSONDecodeError, KeyError):
+            pass
+        
+        # If no JSON found, try to extract translation from text patterns
+        # Look for patterns like "translation": "text" or just the translated text
+        translation_patterns = [
+            r'"translation"\s*:\s*"([^"]+)"',  # JSON format
+            r'translation["\']?\s*:\s*["\']?([^"\']+)["\']?',  # More flexible
+            r'["\']([^"\']+?)["\']',  # Any quoted text
+        ]
+        
+        for pattern in translation_patterns:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                translation = match.group(1).strip()
+                if translation and len(translation) > 2:  # Basic validation
+                    return translation
+        
+        # Fallback: clean up as before
         prefixes_to_remove = [
             'Translation:',
             'Translated text:',
             'Here is the translation:',
-            'The translation is:'
+            'The translation is:',
+            'Translated:',
+            'Result:',
+            'Output:',
+            'Answer:',
+            'JSON response:',
+            'Response:',
+            'Tradução:',
+            'Tradução',
+            'Traduzir:',
+            'Traduzir',
+            'Traduction:',
+            'Traduction',
+            'Übersetzung:',
+            'Übersetzung',
+            'Traduzione:',
+            'Traduzione',
+            'Traducción:',
+            'Traducción',
+            'The translation of',
+            'from Chinese to English is:',
+            'from English to Chinese is:',
         ]
-        
-        response = response.strip()
         
         for prefix in prefixes_to_remove:
             if response.lower().startswith(prefix.lower()):
@@ -178,6 +247,18 @@ Translation:"""
         # Remove quotes if the entire response is quoted
         if response.startswith('"') and response.endswith('"'):
             response = response[1:-1]
+        elif response.startswith("'") and response.endswith("'"):
+            response = response[1:-1]
+        
+        # Remove any additional explanations or text after the translation
+        lines = response.split('\n')
+        if lines:
+            # Take the first non-empty line as the main translation
+            for line in lines:
+                line = line.strip()
+                if line and not line.lower().startswith(('note:', 'explanation:', 'context:', 'additional:', 'json:', 'response:')):
+                    response = line
+                    break
         
         return response.strip()
     
