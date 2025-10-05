@@ -1,10 +1,10 @@
 # 🔌 API Reference - Language Translation
 
-Programmatic API for integrating Language Translation into your applications.
+Programmatic API for integrating Language Translation plugin with Ollama AI models.
 
 ## 📋 Overview
 
-The Language Translation module provides both CLI and programmatic interfaces. This document covers the programmatic API for developers who want to integrate translation functionality into their applications.
+The Language Translation plugin provides both CLI and programmatic interfaces. This document covers the programmatic API for developers who want to integrate translation functionality using local Ollama models into their applications.
 
 ## 🏗️ Architecture
 
@@ -32,14 +32,14 @@ import sys
 from pathlib import Path
 
 # Add module to path
-sys.path.append(str(Path(__file__).parent / "language_translation"))
+sys.path.append(str(Path(__file__).parent / "lkwolfSAI_ablilities" / "language_translation"))
 
 from services.translation_service import TranslationService
 
 # Initialize service
 translation_service = TranslationService()
 
-# Translate text
+# Translate text using Ollama
 async def translate_text():
     result = await translation_service.translate_text(
         text="Hello world",
@@ -285,7 +285,7 @@ MAX_CONCURRENT_TRANSLATIONS = int(os.getenv('MAX_CONCURRENT_TRANSLATIONS', '3'))
 MAX_TEXT_LENGTH = int(os.getenv('MAX_TEXT_LENGTH', '4000'))
 
 # Default Model
-DEFAULT_MODEL = os.getenv('DEFAULT_TRANSLATION_MODEL', 'nllb-200')
+DEFAULT_MODEL = os.getenv('DEFAULT_TRANSLATION_MODEL', 'llama2:latest')
 ```
 
 ### Configuration Class
@@ -297,10 +297,10 @@ from utils.config import TranslationConfig
 config = TranslationConfig()
 
 # Get model configuration
-model_config = config.get_model_config('nllb-200')
+model_config = config.get_model_config('llama2:latest')
 
 # Get supported languages for model
-languages = config.get_supported_languages('nllb-200')
+languages = config.get_supported_languages('llama2:latest')
 
 # Validate configuration
 errors = config.validate_config()
@@ -397,7 +397,7 @@ from core.ai_translator import AILocalTranslator
 
 async def custom_model_translation():
     # Initialize with specific model
-    translator = AILocalTranslator(model_name="nllb-200-large")
+    translator = AILocalTranslator(model_name="llama2:latest")
     
     # Translate with custom model
     result = await translator.translate_text(
@@ -442,7 +442,7 @@ async def caching_example():
         
         # Cache the result
         await cache_service.cache_translation(
-            text, source_lang, target_lang, translated, "nllb-200"
+            text, source_lang, target_lang, translated, "llama2:latest"
         )
         
         print(f"New translation: {translated}")
@@ -479,7 +479,7 @@ async def direct_ollama_usage():
         text="Hello world",
         source_lang="en",
         target_lang="vi",
-        model_name="nllb-200"
+        model_name="llama2:latest"
     )
     
     print(f"Translation: {result}")
@@ -497,7 +497,7 @@ async def custom_ollama_request():
         response = await client.post(
             "http://localhost:11434/api/generate",
             json={
-                "model": "nllb-200",
+                "model": "llama2:latest",
                 "prompt": "Translate to Vietnamese: Hello world",
                 "stream": False,
                 "options": {

@@ -1,372 +1,350 @@
 """
-Main CLI interface for Language Translation Ability
+Language Translation Plugin for lkwolfSAI Ecosystem
+Plug-and-Play Implementation
 """
 import asyncio
-import click
 import logging
+import sys
+from pathlib import Path
+from typing import Dict, Any, Optional
+import click
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.text import Text
-from typing import Dict, Any
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-# Try to load from multiple locations
-load_dotenv()  # Current directory
-load_dotenv('.env')  # Explicit .env file
-load_dotenv('../.env')  # Parent directory
-load_dotenv('../../.env')  # Root directory
+# Add current directory to path for imports if not already present
+current_dir = str(Path(__file__).parent)
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 
-from services.translation_service import translation_service
-from utils.config import config
-from services.database import db_service
+# Import BasePlugin
+sys.path.append(str(Path(__file__).parent.parent))
+from base_plugin import BasePlugin, PluginInfo, PluginStatus
 
 # Setup logging
 logging.basicConfig(
-    level=getattr(logging, config.LOG_LEVEL),
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
+logger = logging.getLogger(__name__)
+
+class LanguageTranslationPlugin(BasePlugin):
+    """Language Translation plugin implementation"""
+    
+    def __init__(self):
+        self._plugin_info = PluginInfo(
+            name="language_translation",
+            version="1.0.0",
+            description="AI-powered translation using local Ollama models",
+            author="lkwolfSAI Team",
+            status=PluginStatus.ACTIVE,
+            dependencies=[
+                "click>=8.0.0",
+                "rich>=13.0.0",
+                "requests>=2.25.0"
+            ],
+            supported_languages=["en", "vi", "ja", "ko", "ru", "fa", "zh"],
+            required_services=[],
+            config_schema={
+                "OLLAMA_BASE_URL": {
+                    "type": "string",
+                    "default": "http://localhost:11434",
+                    "description": "Ollama API base URL"
+                },
+                "DEFAULT_MODEL": {
+                    "type": "string",
+                    "default": "llama2",
+                    "description": "Default translation model"
+                }
+            },
+            commands=[
+                {
+                    "name": "translate",
+                    "description": "Translate text between languages",
+                    "options": [
+                        {
+                            "name": "text",
+                            "type": "string",
+                            "required": True,
+                            "help": "Text to translate"
+                        },
+                        {
+                            "name": "target-lang",
+                            "type": "string",
+                            "required": True,
+                            "help": "Target language code"
+                        },
+                        {
+                            "name": "source-lang",
+                            "type": "string",
+                            "required": False,
+                            "help": "Source language code (auto-detect if not provided)"
+                        }
+                    ]
+                }
+            ]
+        )
+        self._initialized = False
+    
+    @property
+    def plugin_info(self) -> PluginInfo:
+        """Return plugin metadata"""
+        return self._plugin_info
+    
+    async def initialize(self) -> bool:
+        """Initialize plugin"""
+        try:
+            logger.info(f"Initializing {self.plugin_info.name}...")
+            
+            # Check if Ollama is available (optional)
+            try:
+                import requests
+                ollama_url = "http://localhost:11434"
+                response = requests.get(f"{ollama_url}/api/tags", timeout=5)
+                if response.status_code == 200:
+                    logger.info("✓ Ollama service is available")
+                else:
+                    logger.warning("Ollama service not responding properly")
+            except Exception as e:
+                logger.warning(f"Ollama service check failed: {e}")
+                logger.info("Plugin will work in limited mode without Ollama")
+            
+            self._initialized = True
+            logger.info(f"✓ {self.plugin_info.name} initialized successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize {self.plugin_info.name}: {e}")
+            return False
+    
+    async def cleanup(self) -> bool:
+        """Cleanup plugin resources"""
+        try:
+            logger.info(f"Cleaning up {self.plugin_info.name}...")
+            self._initialized = False
+            logger.info(f"✓ {self.plugin_info.name} cleaned up successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to cleanup {self.plugin_info.name}: {e}")
+            return False
+    
+    def get_cli_commands(self) -> list:
+        """Return Click commands for CLI integration"""
+        return [main]
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """Return plugin health status"""
+        health_status = {
+            "plugin": self.plugin_info.name,
+            "version": self.plugin_info.version,
+            "status": "healthy" if self._initialized else "not_initialized",
+            "services": {}
+        }
+        
+        try:
+            # Check Ollama service (optional)
+            try:
+                import requests
+                response = requests.get("http://localhost:11434/api/tags", timeout=5)
+                health_status["services"]["ollama"] = "healthy" if response.status_code == 200 else "unavailable"
+            except Exception:
+                health_status["services"]["ollama"] = "unavailable"
+            
+        except Exception as e:
+            logger.error(f"Health check failed: {e}")
+            health_status["services"]["error"] = str(e)
+        
+        return health_status
+    
+    def validate_config(self, config: Dict[str, Any]) -> list:
+        """Validate plugin configuration"""
+        errors = []
+        
+        # Validate Ollama URL
+        if "OLLAMA_BASE_URL" in config:
+            url = config["OLLAMA_BASE_URL"]
+            if not url or not url.startswith("http"):
+                errors.append("OLLAMA_BASE_URL must be a valid HTTP URL")
+        
+        return errors
+    
+    async def run(self, data: Any = None) -> Any:
+        """Main plugin execution method"""
+        if not self._initialized:
+            await self.initialize()
+        
+        return {
+            "status": "success",
+            "message": f"{self.plugin_info.name} executed",
+            "data": data
+        }
+    
+    async def translate_text(self, text: str, target_lang: str, source_lang: str = None) -> str:
+        """Translate text using Ollama or fallback method"""
+        try:
+            import requests
+            
+            # Try Ollama first
+            try:
+                # Prepare translation prompt
+                if source_lang:
+                    prompt = f"Translate this text from {source_lang} to {target_lang}. Return only the Vietnamese translation:\n\n{text}\n\nTranslation:"
+                else:
+                    prompt = f"Translate this text to Vietnamese ({target_lang}). Return only the Vietnamese translation:\n\n{text}\n\nTranslation:"
+                
+                # Call Ollama API
+                ollama_url = "http://localhost:11434"
+                payload = {
+                    "model": "llama2:latest",
+                    "prompt": prompt,
+                    "stream": False
+                }
+                
+                response = requests.post(f"{ollama_url}/api/generate", json=payload, timeout=120)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    translation = result.get("response", "Translation failed")
+                    # Clean up the response to get only the translation
+                    if "Translation:" in translation:
+                        translation = translation.split("Translation:")[-1].strip()
+                    return translation
+                else:
+                    raise Exception(f"Ollama API error: HTTP {response.status_code}")
+                    
+            except Exception as ollama_error:
+                logger.warning(f"Ollama translation failed: {ollama_error}")
+                # Fallback to simple translation
+                return self._fallback_translation(text, target_lang, source_lang)
+                
+        except Exception as e:
+            return f"Translation error: {str(e)}"
+    
+    def _fallback_translation(self, text: str, target_lang: str, source_lang: str = None) -> str:
+        """Fallback translation method"""
+        # Simple language mapping for demonstration
+        lang_names = {
+            "en": "English",
+            "vi": "Vietnamese", 
+            "ja": "Japanese",
+            "ko": "Korean",
+            "ru": "Russian",
+            "fa": "Persian",
+            "zh": "Chinese"
+        }
+        
+        target_name = lang_names.get(target_lang, target_lang)
+        source_name = lang_names.get(source_lang, source_lang) if source_lang else "auto-detected"
+        
+        return f"[Fallback] Translation from {source_name} to {target_name}: {text} (Note: Ollama service not available)"
+
+# CLI Implementation
 console = Console()
 
-class TranslationCLI:
+class LanguageTranslationCLI:
     """CLI interface for language translation"""
     
     def __init__(self):
-        self.service = translation_service
+        self.plugin = LanguageTranslationPlugin()
     
-    def display_banner(self):
-        """Display welcome banner"""
-        banner = """
-╔══════════════════════════════════════════════════════════════╗
-║                    🌐 LANGUAGE TRANSLATION                   ║
-║                                                              ║
-║              AI-Powered Local Translation Service            ║
-║                   Using Ollama + NLLB-200                   ║
-╚══════════════════════════════════════════════════════════════╝
-        """
-        console.print(Panel(banner, style="bold blue"))
+    async def run_translation(self, text: str = None, target_lang: str = None, 
+                            source_lang: str = None, languages: bool = False,
+                            interactive: bool = False):
+        """Run translation"""
+        
+        if not await self.plugin.initialize():
+            console.print("[red]Failed to initialize plugin[/red]")
+            return
+        
+        try:
+            if languages:
+                await self._show_supported_languages()
+                return
+            
+            if interactive:
+                await self._interactive_mode()
+                return
+            
+            if not text or not target_lang:
+                console.print("[red]Error: Please provide text and target language[/red]")
+                console.print("Use --help for more information")
+                return
+            
+            # Run translation
+            await self._run_translation(text, target_lang, source_lang)
+            
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+        finally:
+            await self.plugin.cleanup()
     
-    def display_supported_languages(self):
-        """Display supported languages"""
-        languages = config.LANGUAGE_NAMES
+    async def _run_translation(self, text: str, target_lang: str, source_lang: str):
+        """Execute translation"""
+        console.print(f"\n[bold blue]🌐 Translating text...[/bold blue]")
+        console.print(f"Text: [cyan]{text}[/cyan]")
+        console.print(f"Target language: [cyan]{target_lang}[/cyan]")
+        if source_lang:
+            console.print(f"Source language: [cyan]{source_lang}[/cyan]")
+        
+        # Translate
+        result = await self.plugin.translate_text(text, target_lang, source_lang)
+        
+        console.print(f"\n[green]✓ Translation result:[/green]")
+        console.print(f"[bold]{result}[/bold]")
+    
+    async def _show_supported_languages(self):
+        """Show supported languages"""
+        console.print("\n[bold blue]🌍 Supported Languages[/bold blue]")
+        
+        languages = {
+            "en": "English",
+            "vi": "Vietnamese",
+            "ja": "Japanese",
+            "ko": "Korean",
+            "ru": "Russian",
+            "fa": "Persian",
+            "zh": "Chinese (Simplified)"
+        }
         
         table = Table(title="Supported Languages")
         table.add_column("Code", style="cyan")
         table.add_column("Language", style="green")
-        table.add_column("Code", style="cyan")
-        table.add_column("Language", style="green")
         
-        # Add languages in pairs
-        lang_items = list(languages.items())
-        for i in range(0, len(lang_items), 2):
-            row = []
-            row.extend(lang_items[i])
-            if i + 1 < len(lang_items):
-                row.extend(lang_items[i + 1])
-            else:
-                row.extend(["", ""])
-            table.add_row(*row)
+        for code, name in languages.items():
+            table.add_row(code, name)
         
         console.print(table)
     
-    def display_models(self):
-        """Display available AI models"""
-        models = config.SUPPORTED_MODELS
-        
-        table = Table(title="Available AI Models")
-        table.add_column("Model", style="cyan")
-        table.add_column("Size", style="green")
-        table.add_column("Provider", style="yellow")
-        table.add_column("Description", style="white")
-        
-        for model_name, model_info in models.items():
-            table.add_row(
-                model_name,
-                model_info['size'],
-                model_info['provider'],
-                model_info['description']
-            )
-        
-        console.print(table)
-    
-    async def translate_interactive(self):
-        """Interactive translation mode"""
-        console.print("\n[bold green]🔄 Interactive Translation Mode[/bold green]")
-        
-        # Initialize service
-        if not await self.service.initialize():
-            console.print("[bold red]❌ Failed to initialize translation service[/bold red]")
-            return
-        
-        # Get model info
-        model_info = await self.service.get_model_info()
-        console.print(f"[cyan]Using model: {model_info.get('name', 'Unknown')}[/cyan]")
-        
-        while True:
-            try:
-                console.print("\n" + "="*60)
-                
-                # Get source text
-                source_text = click.prompt("Enter text to translate", type=str)
-                if source_text.lower() in ['quit', 'exit', 'q']:
-                    break
-                
-                # Get source language
-                source_lang = click.prompt(
-                    "Source language (or 'auto' for detection)", 
-                    default='auto',
-                    type=str
-                )
-                
-                # Get target language
-                target_lang = click.prompt(
-                    "Target language", 
-                    default='vi',
-                    type=str
-                )
-                
-                # Translate
-                console.print(f"\n[bold yellow]Translating: {source_text[:50]}...[/bold yellow]")
-                
-                translated = await self.service.translate_text(
-                    source_text, target_lang, source_lang
-                )
-                
-                if translated:
-                    console.print(f"[bold green]✅ Translation:[/bold green]")
-                    console.print(Panel(translated, title="Result", style="green"))
-                else:
-                    console.print("[bold red]❌ Translation failed[/bold red]")
-                
-            except KeyboardInterrupt:
-                console.print("\n[yellow]Translation interrupted[/yellow]")
-                break
-            except Exception as e:
-                console.print(f"[bold red]Error: {e}[/bold red]")
-    
-    async def translate_batch(self, texts: list, source_lang: str, target_lang: str):
-        """Batch translation mode"""
-        console.print(f"\n[bold green]🔄 Batch Translation Mode[/bold green]")
-        console.print(f"Translating {len(texts)} texts from {source_lang} to {target_lang}")
-        
-        # Initialize service
-        if not await self.service.initialize():
-            console.print("[bold red]❌ Failed to initialize translation service[/bold red]")
-            return
-        
-        results = []
-        with console.status("[bold green]Translating..."):
-            results = await self.service.batch_translate(texts, target_lang, source_lang)
-        
-        # Display results
-        table = Table(title="Batch Translation Results")
-        table.add_column("Original", style="cyan")
-        table.add_column("Translation", style="green")
-        table.add_column("Status", style="yellow")
-        
-        for i, (original, translated) in enumerate(zip(texts, results)):
-            status = "✅ Success" if translated else "❌ Failed"
-            table.add_row(
-                original[:50] + "..." if len(original) > 50 else original,
-                translated[:50] + "..." if translated and len(translated) > 50 else (translated or ""),
-                status
-            )
-        
-        console.print(table)
-    
-    async def show_stats(self):
-        """Show translation statistics"""
-        console.print("\n[bold green]📊 Translation Statistics[/bold green]")
-        
-        # Get cache stats
-        from services.translation_cache import TranslationCacheService
-        cache_service = TranslationCacheService()
-        cache_stats = await cache_service.get_cache_stats()
-        
-        stats_table = Table(title="Cache Statistics")
-        stats_table.add_column("Metric", style="cyan")
-        stats_table.add_column("Value", style="green")
-        
-        stats_table.add_row("Database Cache Entries", str(cache_stats['database_entries']))
-        stats_table.add_row("Memory Cache Entries", str(cache_stats['memory_entries']))
-        stats_table.add_row("Total Cache Hits", str(cache_stats['total_hits']))
-        stats_table.add_row("Cache TTL (seconds)", str(cache_stats['cache_ttl']))
-        
-        console.print(stats_table)
+    async def _interactive_mode(self):
+        """Interactive mode"""
+        console.print("\n[bold blue]🎯 Interactive Translation Mode[/bold blue]")
+        console.print("[yellow]Interactive mode not implemented yet[/yellow]")
 
-async def handle_module_call(function_name: str, args_json: str):
-    """Handle module call from other modules"""
-    try:
-        import json
-        
-        # Parse arguments
-        args = json.loads(args_json) if args_json else {}
-        
-        # Initialize service
-        service = translation_service
-        if not await service.initialize():
-            print(json.dumps({
-                'success': False,
-                'error': 'Failed to initialize translation service',
-                'result': None
-            }))
-            return
-        
-        # Handle different function calls
-        if function_name == 'translate_text':
-            text = args.get('text', '')
-            target_language = args.get('target_language', 'vi')
-            source_language = args.get('source_language', 'auto')
-            
-            translated = await service.translate_text(text, target_language, source_language)
-            
-            print(json.dumps({
-                'success': True,
-                'error': None,
-                'result': {
-                    'translated_text': translated,
-                    'source_language': source_language,
-                    'target_language': target_language
-                }
-            }))
-            
-        elif function_name == 'detect_language':
-            text = args.get('text', '')
-            detected = await service.detect_language(text)
-            
-            print(json.dumps({
-                'success': True,
-                'error': None,
-                'result': {
-                    'detected_language': detected
-                }
-            }))
-            
-        elif function_name == 'get_supported_languages':
-            languages = await service.get_supported_languages()
-            
-            print(json.dumps({
-                'success': True,
-                'error': None,
-                'result': {
-                    'languages': languages
-                }
-            }))
-            
-        else:
-            print(json.dumps({
-                'success': False,
-                'error': f'Unknown function: {function_name}',
-                'result': None
-            }))
-            
-    except Exception as e:
-        print(json.dumps({
-            'success': False,
-            'error': str(e),
-            'result': None
-        }))
-
+# CLI Commands
 @click.command()
 @click.option('--text', '-t', help='Text to translate')
-@click.option('--source-lang', '-s', default='auto', help='Source language code')
-@click.option('--target-lang', '-l', default='vi', help='Target language code')
-@click.option('--model', '-m', default=None, help='AI model to use')
-@click.option('--batch', '-b', is_flag=True, help='Batch translation mode')
-@click.option('--interactive', '-i', is_flag=True, help='Interactive mode')
+@click.option('--target-lang', help='Target language code')
+@click.option('--source-lang', help='Source language code (auto-detect if not provided)')
 @click.option('--languages', is_flag=True, help='Show supported languages')
-@click.option('--models', is_flag=True, help='Show available models')
-@click.option('--stats', is_flag=True, help='Show translation statistics')
-@click.option('--init-db', is_flag=True, help='Initialize database')
-@click.option('--module-call', is_flag=True, help='Module call mode (internal)')
-@click.option('--function', help='Function to call in module call mode')
-@click.option('--args', help='JSON arguments for module call mode')
-def main(text, source_lang, target_lang, model, batch, interactive, languages, models, stats, init_db, module_call, function, args):
-    """Language Translation CLI - AI-powered local translation service"""
+@click.option('--interactive', '-i', is_flag=True, help='Interactive mode')
+def main(text, target_lang, source_lang, languages, interactive):
+    """Language Translation Plugin - AI-powered translation using Ollama"""
     
-    cli = TranslationCLI()
-    
-    async def run_async():
-        # Handle module call mode
-        if module_call:
-            await handle_module_call(function, args)
-            return
-        
-        # Initialize database if requested
-        if init_db:
-            console.print("[bold yellow]Initializing database...[/bold yellow]")
-            await db_service.create_tables()
-            console.print("[bold green]✅ Database initialized[/bold green]")
-            return
-        
-        # Show supported languages
-        if languages:
-            cli.display_banner()
-            cli.display_supported_languages()
-            return
-        
-        # Show available models
-        if models:
-            cli.display_banner()
-            cli.display_models()
-            return
-        
-        # Show statistics
-        if stats:
-            cli.display_banner()
-            await cli.show_stats()
-            return
-        
-        # Interactive mode
-        if interactive:
-            cli.display_banner()
-            cli.display_supported_languages()
-            await cli.translate_interactive()
-            return
-        
-        # Batch mode
-        if batch:
-            cli.display_banner()
-            if not text:
-                console.print("[bold red]❌ Please provide text for batch translation[/bold red]")
-                return
+    if not any([text, target_lang, languages, interactive]):
+        console.print("[red]Error: Please provide text and target language, or use --languages or --interactive[/red]")
+        console.print("Use --help for more information")
+        return
             
-            texts = [line.strip() for line in text.split('\n') if line.strip()]
-            await cli.translate_batch(texts, source_lang, target_lang)
-            return
-        
-        # Single translation
-        if text:
-            cli.display_banner()
-            
-            # Initialize service
-            if not await cli.service.initialize():
-                console.print("[bold red]❌ Failed to initialize translation service[/bold red]")
-                return
-            
-            console.print(f"[bold yellow]Translating: {text[:50]}...[/bold yellow]")
-            
-            translated = await cli.service.translate_text(text, target_lang, source_lang)
-            
-            if translated:
-                console.print(f"[bold green]✅ Translation:[/bold green]")
-                console.print(Panel(translated, title="Result", style="green"))
-            else:
-                console.print("[bold red]❌ Translation failed[/bold red]")
-        else:
-            # Default: show banner and help
-            cli.display_banner()
-            console.print("\n[bold cyan]Usage Examples:[/bold cyan]")
-            console.print("  [green]python main.py --interactive[/green]          # Interactive mode")
-            console.print("  [green]python main.py --text 'Hello' --target-lang vi[/green]  # Single translation")
-            console.print("  [green]python main.py --languages[/green]            # Show supported languages")
-            console.print("  [green]python main.py --models[/green]               # Show available models")
-            console.print("  [green]python main.py --stats[/green]                # Show statistics")
-    
-    # Run async function
-    asyncio.run(run_async())
+    cli = LanguageTranslationCLI()
+    asyncio.run(cli.run_translation(
+        text=text,
+        target_lang=target_lang,
+        source_lang=source_lang,
+        languages=languages,
+        interactive=interactive
+    ))
 
 if __name__ == "__main__":
     main()

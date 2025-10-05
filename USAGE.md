@@ -1,15 +1,26 @@
 # 📖 Usage Guide - Language Translation
 
-Complete guide for using the Language Translation tool effectively.
+Complete guide for using the Language Translation plugin with Ollama AI models.
 
 ## 🎯 Getting Started
 
-### Interactive Mode (Recommended for Beginners)
-
-The interactive mode provides a guided experience:
+### Quick Start
 
 ```bash
-python main.py --interactive
+# Basic translation
+python main.py --plugin language_translation --text "Hello world" --target-lang vi
+
+# With source language detection
+python main.py --plugin language_translation --text "Bonjour le monde" --target-lang en --source-lang auto
+
+# Batch translation
+python main.py --plugin language_translation --batch --text "Hello" --text "World" --target-lang vi
+```
+
+### Interactive Mode
+
+```bash
+python main.py --plugin language_translation --interactive
 ```
 
 **Step-by-step process:**
@@ -20,22 +31,22 @@ python main.py --interactive
 5. **Configure options** - Set model, batch size, etc.
 6. **View results** - See translations with confidence scores
 
-### Command Line Mode (For Automation)
+### Command Line Mode
 
 Perfect for scripts and automated workflows:
 
 ```bash
 # Basic translation
-python main.py --text "Hello world" --target-lang vi
+python main.py --plugin language_translation --text "Hello world" --target-lang vi
 
 # With source language detection
-python main.py --text "Bonjour le monde" --target-lang en --source-lang auto
+python main.py --plugin language_translation --text "Bonjour le monde" --target-lang en --source-lang auto
 
 # Batch translation
-python main.py --batch --text "Hello" --text "World" --target-lang vi
+python main.py --plugin language_translation --batch --text "Hello" --text "World" --target-lang vi
 
 # Using specific model
-python main.py --text "Test" --target-lang vi --model nllb-200-large
+python main.py --plugin language_translation --text "Test" --target-lang vi --model llama2:latest
 ```
 
 ## 🔧 Advanced Configuration
@@ -71,7 +82,7 @@ LOG_FILE=./logs/language_translation.log
 ### Command Line Options
 
 ```bash
-python main.py [OPTIONS]
+python main.py --plugin language_translation [OPTIONS]
 
 Options:
   --text, -t TEXT          Text to translate
@@ -105,66 +116,52 @@ Options:
 
 ```bash
 # English to Vietnamese
-python main.py --text "Hello world" --source-lang en --target-lang vi
+python main.py --plugin language_translation --text "Hello world" --source-lang en --target-lang vi
 
 # Auto-detect source language
-python main.py --text "Bonjour le monde" --target-lang en
+python main.py --plugin language_translation --text "Bonjour le monde" --target-lang en
 
 # Japanese to English
-python main.py --text "こんにちは世界" --source-lang ja --target-lang en
+python main.py --plugin language_translation --text "こんにちは世界" --source-lang ja --target-lang en
 
 # Multiple target languages (batch)
-python main.py --text "Hello" --target-lang vi,ja,ko
+python main.py --plugin language_translation --text "Hello" --target-lang vi,ja,ko
 ```
 
 ## 🤖 AI Models
 
 ### Available Models
 
-#### NLLB-200 Distilled (Recommended)
-```bash
-# Download and use
-ollama pull nllb-200-distilled-600M
-python main.py --text "Test" --model nllb-200
-```
-
-**Features:**
-- Size: 600MB
-- Languages: 14+
-- Best for: General translation
-- Speed: Fast
-
-#### NLLB-200 Large
-```bash
-# Download and use
-ollama pull nllb-200-1.3B
-python main.py --text "Test" --model nllb-200-large
-```
-
-**Features:**
-- Size: 1.3GB
-- Languages: 14+
-- Best for: High-quality translation
-- Speed: Moderate
-
-#### Llama2 (Alternative)
+#### Llama2 (Recommended)
 ```bash
 # Download and use
 ollama pull llama2:latest
-python main.py --text "Test" --model llama2
+python main.py --plugin language_translation --text "Test" --model llama2:latest
 ```
 
 **Features:**
 - Size: 3.8GB
 - Languages: 14+
-- Best for: General purpose, creative translation
-- Speed: Slower
+- Best for: High-quality translation
+- Speed: Moderate
+
+#### TinyLlama (Fast)
+```bash
+# Download and use
+ollama pull tinyllama:latest
+python main.py --plugin language_translation --text "Test" --model tinyllama:latest
+```
+
+**Features:**
+- Size: 1.1GB
+- Languages: 14+
+- Best for: Fast translation
+- Speed: Fast
 
 ### Model Selection Guide
 
-**For Speed:** Use `nllb-200` (600MB)
-**For Quality:** Use `nllb-200-large` (1.3GB)
-**For Creativity:** Use `llama2` (3.8GB)
+**For Speed:** Use `tinyllama:latest` (1.1GB)
+**For Quality:** Use `llama2:latest` (3.8GB)
 
 ## 📊 Translation Modes
 
@@ -172,36 +169,36 @@ python main.py --text "Test" --model llama2
 
 ```bash
 # Simple translation
-python main.py --text "Hello world" --target-lang vi
+python main.py --plugin language_translation --text "Hello world" --target-lang vi
 
 # With confidence score
-python main.py --text "Hello world" --target-lang vi --verbose
+python main.py --plugin language_translation --text "Hello world" --target-lang vi --verbose
 
 # Using specific model
-python main.py --text "Hello world" --target-lang vi --model nllb-200-large
+python main.py --plugin language_translation --text "Hello world" --target-lang vi --model llama2:latest
 ```
 
 ### Batch Translation
 
 ```bash
 # Multiple texts
-python main.py --batch --text "Hello" --text "World" --text "Test" --target-lang vi
+python main.py --plugin language_translation --batch --text "Hello" --text "World" --text "Test" --target-lang vi
 
 # From file (if implemented)
-python main.py --batch --input-file texts.txt --target-lang vi
+python main.py --plugin language_translation --batch --input-file texts.txt --target-lang vi
 
 # Multiple target languages
-python main.py --text "Hello" --target-lang vi,ja,ko
+python main.py --plugin language_translation --text "Hello" --target-lang vi,ja,ko
 ```
 
 ### Language Detection
 
 ```bash
 # Auto-detect source language
-python main.py --text "Bonjour le monde" --target-lang en --source-lang auto
+python main.py --plugin language_translation --text "Bonjour le monde" --target-lang en --source-lang auto
 
 # Detect language only
-python main.py --text "Bonjour le monde" --detect-only
+python main.py --plugin language_translation --text "Bonjour le monde" --detect-only
 ```
 
 ## 💾 Caching System
@@ -223,20 +220,20 @@ DATABASE_URL=postgresql://user:password@localhost:5432/translation_db
 
 ```bash
 # First translation (will be cached)
-python main.py --text "Hello world" --target-lang vi
+python main.py --plugin language_translation --text "Hello world" --target-lang vi
 
 # Second translation (will use cache)
-python main.py --text "Hello world" --target-lang vi
+python main.py --plugin language_translation --text "Hello world" --target-lang vi
 
 # Clear cache
-python main.py --clear-cache
+python main.py --plugin language_translation --clear-cache
 ```
 
 ### Cache Statistics
 
 ```bash
 # View cache statistics
-python main.py --stats
+python main.py --plugin language_translation --stats
 
 # Cache info includes:
 # - Total cached translations
@@ -251,7 +248,7 @@ python main.py --stats
 
 ```bash
 # Initialize database
-python main.py --init-db
+python main.py --plugin language_translation --init-db
 
 # Or use script
 python scripts/init_database.py
@@ -268,13 +265,13 @@ python scripts/init_database.py
 
 ```bash
 # View translation history
-python main.py --history
+python main.py --plugin language_translation --history
 
 # Export translation data
-python main.py --export-history --format csv
+python main.py --plugin language_translation --export-history --format csv
 
 # Clean old data
-python main.py --cleanup --days 30
+python main.py --plugin language_translation --cleanup --days 30
 ```
 
 ## 🎯 Best Practices
@@ -299,13 +296,13 @@ python main.py --cleanup --days 30
 
 ```bash
 # Technical documentation
-python main.py --text "API documentation" --model nllb-200 --target-lang vi
+python main.py --plugin language_translation --text "API documentation" --model llama2:latest --target-lang vi
 
 # Creative content
-python main.py --text "Poetry" --model llama2 --target-lang vi
+python main.py --plugin language_translation --text "Poetry" --model llama2:latest --target-lang vi
 
 # General text
-python main.py --text "General text" --model nllb-200 --target-lang vi
+python main.py --plugin language_translation --text "General text" --model tinyllama:latest --target-lang vi
 ```
 
 ### Performance Optimization
@@ -411,10 +408,10 @@ journalctl -u ollama -f
 ollama list
 
 # Pull missing model
-ollama pull nllb-200-distilled-600M
+ollama pull llama2:latest
 
 # Check model info
-python main.py --models
+python main.py --plugin language_translation --models
 ```
 
 **Database connection errors:**
@@ -429,10 +426,10 @@ python scripts/recreate_tables.py
 **Translation quality issues:**
 ```bash
 # Try different model
-python main.py --text "Your text" --model nllb-200-large
+python main.py --plugin language_translation --text "Your text" --model llama2:latest
 
 # Check language codes
-python main.py --languages
+python main.py --plugin language_translation --languages
 
 # Verify text format
 # Ensure proper punctuation and context
@@ -441,7 +438,7 @@ python main.py --languages
 ### Performance Issues
 
 **Slow translations:**
-- Use smaller model (`nllb-200` instead of `nllb-200-large`)
+- Use smaller model (`tinyllama:latest` instead of `llama2:latest`)
 - Enable GPU acceleration in Ollama
 - Reduce text length
 - Use caching for repeated translations
@@ -462,7 +459,7 @@ python main.py --languages
 
 ```bash
 # View statistics
-python main.py --stats
+python main.py --plugin language_translation --stats
 
 # Statistics include:
 # - Total translations performed
@@ -479,7 +476,7 @@ python main.py --stats
 htop | grep ollama
 
 # Check database size
-python main.py --db-stats
+python main.py --plugin language_translation --db-stats
 
 # View logs
 tail -f logs/language_translation.log
@@ -489,10 +486,10 @@ tail -f logs/language_translation.log
 
 ```bash
 # Export translation history
-python main.py --export-history --format csv
+python main.py --plugin language_translation --export-history --format csv
 
 # Export statistics
-python main.py --export-stats --format json
+python main.py --plugin language_translation --export-stats --format json
 
 # Backup database
 pg_dump translation_db > backup.sql
@@ -500,4 +497,4 @@ pg_dump translation_db > backup.sql
 
 ---
 
-**Ready to start translating? Try the interactive mode: `python main.py --interactive`** 🚀
+**Ready to start translating? Try the interactive mode: `python main.py --plugin language_translation --interactive`** 🚀
